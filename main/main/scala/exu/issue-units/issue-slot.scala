@@ -99,7 +99,7 @@ class IssueSlot(val numWakeupPorts: Int)(implicit p: Parameters)
   val next_p1_poisoned = Mux(io.in_uop.valid, io.in_uop.bits.iw_p1_poisoned, p1_poisoned)
   val next_p2_poisoned = Mux(io.in_uop.valid, io.in_uop.bits.iw_p2_poisoned, p2_poisoned)
 
-  val slot_uop = RegInit(NullMicroOp)
+  val slot_uop = RegInit(NullMicroOp())
   val next_uop = Mux(io.in_uop.valid, io.in_uop.bits, slot_uop)
 
   //-----------------------------------------------------------------------------
