@@ -24,7 +24,7 @@ import boom.lsu._
 // ---------------------
 
 class WithBoomCommitLogPrintf extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
       enableCommitLogPrintf = true
     )))
@@ -34,7 +34,7 @@ class WithBoomCommitLogPrintf extends Config((site, here, up) => {
 
 
 class WithBoomBranchPrintf extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
       enableBranchPrintf = true
     )))
@@ -43,7 +43,7 @@ class WithBoomBranchPrintf extends Config((site, here, up) => {
 })
 
 class WithCasinoScheduling extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams =>
       val casinoParams = tp.tileParams.core.casino.getOrElse(CasinoParams())
       tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
@@ -55,7 +55,7 @@ class WithCasinoScheduling extends Config((site, here, up) => {
 
 class WithCasinoOnLastBoomTile extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) =>
-    val prev = up(TilesLocated(InSubsystem), site)
+    val prev = up(TilesLocated(InSubsystem))
     prev.zipWithIndex.map {
       case (tp: BoomTileAttachParams, idx) if idx == prev.size - 1 =>
         val casinoParams = tp.tileParams.core.casino.getOrElse(CasinoParams())
@@ -67,7 +67,7 @@ class WithCasinoOnLastBoomTile extends Config((site, here, up) => {
 })
 
 class WithNBoomPerfCounters(n: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
       nPerfCounters = n
     )))
@@ -77,7 +77,7 @@ class WithNBoomPerfCounters(n: Int) extends Config((site, here, up) => {
 
 
 class WithSynchronousBoomTiles extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       crossingType = SynchronousCrossing()
     ))
@@ -86,7 +86,7 @@ class WithSynchronousBoomTiles extends Config((site, here, up) => {
 })
 
 class WithAsynchronousBoomTiles extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       crossingType = AsynchronousCrossing()
     ))
@@ -95,7 +95,7 @@ class WithAsynchronousBoomTiles extends Config((site, here, up) => {
 })
 
 class WithRationalBoomTiles extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       crossingType = RationalCrossing()
     ))
@@ -110,7 +110,7 @@ class WithNSmallBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) extends 
   new WithTAGELBPD ++ // Default to TAGE-L BPD
   new Config((site, here, up) => {
     case TilesLocated(InSubsystem) => {
-      val prev = up(TilesLocated(InSubsystem), site)
+      val prev = up(TilesLocated(InSubsystem))
       val idOffset = overrideIdOffset.getOrElse(prev.size)
       (0 until n).map { i =>
         BoomTileAttachParams(
@@ -156,7 +156,7 @@ class WithNMediumBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) extends
   new WithTAGELBPD ++ // Default to TAGE-L BPD
   new Config((site, here, up) => {
     case TilesLocated(InSubsystem) => {
-      val prev = up(TilesLocated(InSubsystem), site)
+      val prev = up(TilesLocated(InSubsystem))
       val idOffset = overrideIdOffset.getOrElse(prev.size)
       (0 until n).map { i =>
         BoomTileAttachParams(
@@ -202,7 +202,7 @@ class WithNLargeBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) extends 
   new WithTAGELBPD ++ // Default to TAGE-L BPD
   new Config((site, here, up) => {
     case TilesLocated(InSubsystem) => {
-      val prev = up(TilesLocated(InSubsystem), site)
+      val prev = up(TilesLocated(InSubsystem))
       val idOffset = overrideIdOffset.getOrElse(prev.size)
       (0 until n).map { i =>
         BoomTileAttachParams(
@@ -248,7 +248,7 @@ class WithNMegaBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) extends C
   new WithTAGELBPD ++ // Default to TAGE-L BPD
   new Config((site, here, up) => {
     case TilesLocated(InSubsystem) => {
-      val prev = up(TilesLocated(InSubsystem), site)
+      val prev = up(TilesLocated(InSubsystem))
       val idOffset = overrideIdOffset.getOrElse(prev.size)
       (0 until n).map { i =>
         BoomTileAttachParams(
@@ -294,7 +294,7 @@ class WithNGigaBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) extends C
   new WithTAGELBPD ++ // Default to TAGE-L BPD
   new Config((site, here, up) => {
     case TilesLocated(InSubsystem) => {
-      val prev = up(TilesLocated(InSubsystem), site)
+      val prev = up(TilesLocated(InSubsystem))
       val idOffset = overrideIdOffset.getOrElse(prev.size)
       (0 until n).map { i =>
         BoomTileAttachParams(
@@ -342,7 +342,7 @@ class WithCloneBoomTiles(
   cloneLocation: HierarchicalLocation = InSubsystem
 ) extends Config((site, here, up) => {
   case TilesLocated(`location`) => {
-    val prev = up(TilesLocated(location), site)
+    val prev = up(TilesLocated(location))
     val idOffset = overrideIdOffset.getOrElse(prev.size)
     val tileAttachParams = up(TilesLocated(cloneLocation)).find(_.tileParams.hartId == cloneTileId)
       .get.asInstanceOf[BoomTileAttachParams]
@@ -361,7 +361,7 @@ class WithNCS152BaselineBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) 
   new WithTAGELBPD ++ // Default to TAGE-L BPD
   new Config((site, here, up) => {
     case TilesLocated(InSubsystem) => {
-      val prev = up(TilesLocated(InSubsystem), site)
+      val prev = up(TilesLocated(InSubsystem))
       val idOffset = overrideIdOffset.getOrElse(prev.size)
       (0 until n).map { i =>
         val coreWidth = 1                     // CS152: Change me (1 to 4)
@@ -409,7 +409,7 @@ class WithNCS152DefaultBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) e
   new WithTAGELBPD ++ // Default to TAGE-L BPD
   new Config((site, here, up) => {
     case TilesLocated(InSubsystem) => {
-      val prev = up(TilesLocated(InSubsystem), site)
+      val prev = up(TilesLocated(InSubsystem))
       val idOffset = overrideIdOffset.getOrElse(prev.size)
       (0 until n).map { i =>
         val coreWidth = 3                     // CS152: Change me (1 to 4)
@@ -459,7 +459,7 @@ class WithNCS152DefaultBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) e
   */
 
 class WithTAGELBPD extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
       bpdMaxMetaLength = 120,
       globalHistoryLength = 64,
@@ -488,7 +488,7 @@ class WithTAGELBPD extends Config((site, here, up) => {
 })
 
 class WithBoom2BPD extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
       bpdMaxMetaLength = 45,
       globalHistoryLength = 16,
@@ -515,7 +515,7 @@ class WithBoom2BPD extends Config((site, here, up) => {
 })
 
 class WithAlpha21264BPD extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
       bpdMaxMetaLength = 64,
       globalHistoryLength = 32,
@@ -544,7 +544,7 @@ class WithAlpha21264BPD extends Config((site, here, up) => {
 
 
 class WithSWBPD extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem)) map {
     case tp: BoomTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
       bpdMaxMetaLength = 1,
       globalHistoryLength = 32,
