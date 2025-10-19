@@ -28,6 +28,16 @@ class DualSmallBoomConfig extends Config(
   new boom.common.WithNSmallBooms(2) ++                          // 2 boom cores
   new chipyard.config.AbstractConfig)
 
+class SmallCasinoBoomConfig extends Config(
+  new boom.common.WithNSmallBooms(1) ++
+  new boom.common.WithCasinoScheduling ++
+  new chipyard.config.AbstractConfig)
+
+class SmallBoomAndCasinoConfig extends Config(
+  new boom.common.WithNSmallBooms(2) ++
+  new boom.common.WithCasinoOnLastBoomTile ++
+  new chipyard.config.AbstractConfig)
+
 class Cloned64MegaBoomConfig extends Config(
   new boom.common.WithCloneBoomTiles(63, 0) ++
   new boom.common.WithNMegaBooms(1) ++                           // mega boom config
