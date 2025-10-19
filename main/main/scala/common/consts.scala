@@ -275,6 +275,11 @@ trait ScalarOpConstants
     uop.uses_ldq   := false.B
     uop.pdst       := 0.U
     uop.dst_rtype  := RT_X
+    uop.casino.active := false.B
+    uop.casino.issuedFromSpecIQ := false.B
+    uop.casino.usesDataBuffer := false.B
+    uop.casino.outstandingStoreHazard := false.B
+    uop.casino.oscaHash := 0.U
 
     val cs = Wire(new boom.common.CtrlSignals())
     cs             := DontCare // Overridden in the following lines

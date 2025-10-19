@@ -44,6 +44,8 @@ import boom.common._
 import boom.ifu.{GlobalHistory, HasBoomFrontendParameters}
 import boom.exu.FUConstants._
 import boom.util._
+import boom.casino._
+import scala.math.max
 
 /**
  * Top level core object that connects the Frontend to the rest of the pipeline.
@@ -143,6 +145,8 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
   val int_iss_wakeups  = Wire(Vec(numIntIssueWakeupPorts, Valid(new ExeUnitResp(xLen))))
   val int_ren_wakeups  = Wire(Vec(numIntRenameWakeupPorts, Valid(new ExeUnitResp(xLen))))
   val pred_wakeup  = Wire(Valid(new ExeUnitResp(1)))
+
+  val casinoEnabled = boomParams.casino.nonEmpty
 
   require (exe_units.length == issue_units.map(_.issueWidth).sum)
 
@@ -662,6 +666,85 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     dis_uops(w).ppred_busy := p_uop.ppred_busy && dis_uops(w).is_sfb_shadow
 
     ren_stalls(w) := rename_stage.io.ren_stalls(w) || f_stall || p_stall
+
+    dis_uops(w).casino.active := false.B
+    dis_uops(w).casino.issuedFromSpecIQ := false.B
+    dis_uops(w).casino.usesDataBuffer := false.B
+    dis_uops(w).casino.outstandingStoreHazard := false.B
+    dis_uops(w).casino.oscaHash := 0.U
+  }
+
+  val casinoSpecMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoOutstandingMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoDataAlloc = Wire(Vec(coreWidth, Bool()))
+  val casinoDataRelease = Wire(Vec(coreWidth, Bool()))
+  val casinoDataBufferFullWire = WireDefault(false.B)
+
+  if (casinoEnabled) {
+    val casinoParams = boomParams.casino.get
+    val specStage = Module(new SpecInOStage(casinoParams.speculativeWindow))
+    specStage.io.valid := dis_valids
+    specStage.io.uops := dis_uops
+
+    val oscaEntries = casinoParams.outstandingStoreCounters
+    val oscaHashWidth = max(1, log2Ceil(oscaEntries))
+    val osca = Module(new OutstandingStoreCounterArray(oscaEntries, coreWidth))
+
+    val oscaIncrements = Wire(Vec(coreWidth, Valid(UInt(oscaHashWidth.W))))
+    val oscaDecrements = Wire(Vec(coreWidth, Valid(UInt(oscaHashWidth.W))))
+    val oscaQueries = Wire(Vec(coreWidth, Valid(UInt(oscaHashWidth.W))))
+
+    for (w <- 0 until coreWidth) {
+      val dispatchHash = dis_uops(w).rob_idx(oscaHashWidth-1, 0)
+
+      oscaIncrements(w).valid := dis_fire(w) && dis_uops(w).uses_stq
+      oscaIncrements(w).bits := dispatchHash
+
+      oscaDecrements(w).valid := rob.io.commit.valids(w) && rob.io.commit.uops(w).uses_stq && !rob.io.commit.rbk_valids(w)
+      oscaDecrements(w).bits := rob.io.commit.uops(w).casino.oscaHash
+
+      oscaQueries(w).valid := dis_valids(w) && dis_uops(w).uses_ldq
+      oscaQueries(w).bits := dispatchHash
+
+      dis_uops(w).casino.oscaHash := dispatchHash
+    }
+
+    osca.io.increment := oscaIncrements
+    osca.io.decrement := oscaDecrements
+    osca.io.query := oscaQueries
+    dontTouch(osca.io.snapshot)
+
+    casinoOutstandingMask := osca.io.queryHasStore
+    dontTouch(casinoOutstandingMask)
+
+    val specFiltered = Wire(Vec(coreWidth, Bool()))
+    for (w <- 0 until coreWidth) {
+      val hasOutstanding = dis_uops(w).uses_ldq && osca.io.queryHasStore(w)
+      val speculative = specStage.io.readyMask(w) && !hasOutstanding
+      val needsBuffer = !speculative && dis_uops(w).dst_rtype === RT_FIX
+
+      dis_uops(w).casino.active := true.B
+      dis_uops(w).casino.issuedFromSpecIQ := speculative
+      dis_uops(w).casino.usesDataBuffer := needsBuffer
+      dis_uops(w).casino.outstandingStoreHazard := hasOutstanding
+
+      casinoDataAlloc(w) := dis_fire(w) && needsBuffer
+      specFiltered(w) := speculative
+    }
+
+    val dataBuffer = Module(new CasinoDataBuffer(casinoParams.dataBufferEntries))
+    dataBuffer.io.allocate := casinoDataAlloc
+    for (w <- 0 until coreWidth) {
+      casinoDataRelease(w) := rob.io.commit.valids(w) && rob.io.commit.uops(w).casino.usesDataBuffer && !rob.io.commit.rbk_valids(w)
+    }
+    dataBuffer.io.release := casinoDataRelease
+    casinoDataBufferFullWire := dataBuffer.io.full
+    dontTouch(dataBuffer.io.occupancy)
+
+    casinoSpecMask := specFiltered
+  } else {
+    casinoDataAlloc := VecInit(Seq.fill(coreWidth)(false.B))
+    casinoDataRelease := VecInit(Seq.fill(coreWidth)(false.B))
   }
 
   //-------------------------------------------------------------
@@ -696,6 +779,7 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
                       || wait_for_rocc(w)
                       || dis_prior_slot_unique(w)
                       || dis_rocc_alloc_stall(w)
+                      || (if (casinoEnabled) (!casinoSpecMask(w) && casinoDataBufferFullWire) else false.B)
                       || brupdate.b1.mispredict_mask =/= 0.U
                       || brupdate.b2.mispredict
                       || io.ifu.redirect_flush))

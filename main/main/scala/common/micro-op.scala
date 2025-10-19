@@ -17,6 +17,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 
 import boom.exu.FUConstants
+import scala.math.max
 
 /**
  * Extension to BoomBundle to add a MicroOp
@@ -29,6 +30,16 @@ abstract trait HasBoomUOP extends BoomBundle
 /**
  * MicroOp passing through the pipeline
  */
+class CasinoMetadata(oscaWidth: Int)(implicit p: Parameters) extends Bundle {
+  require(oscaWidth >= 1)
+
+  val active = Bool()
+  val issuedFromSpecIQ = Bool()
+  val usesDataBuffer = Bool()
+  val outstandingStoreHazard = Bool()
+  val oscaHash = UInt(oscaWidth.W)
+}
+
 class MicroOp(implicit p: Parameters) extends BoomBundle
   with freechips.rocketchip.rocket.constants.MemoryOpConstants
   with freechips.rocketchip.rocket.constants.ScalarOpConstants
@@ -104,6 +115,9 @@ class MicroOp(implicit p: Parameters) extends BoomBundle
   val is_unique        = Bool()                      // only allow this instruction in the pipeline, wait for STQ to
                                                      // drain, clear fetcha fter it (tell ROB to un-ready until empty)
   val flush_on_commit  = Bool()                      // some instructions need to flush the pipeline behind them
+
+  private val casinoHashWidth = max(1, log2Ceil(boomParams.casino.map(_.outstandingStoreCounters).getOrElse(1)))
+  val casino = new CasinoMetadata(casinoHashWidth)
 
   // Preditation
   def is_sfb_br        = is_br && is_sfb && enableSFBOpt.B // Does this write a predicate
