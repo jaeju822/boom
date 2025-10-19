@@ -42,6 +42,30 @@ class WithBoomBranchPrintf extends Config((site, here, up) => {
   }
 })
 
+class WithCasinoScheduling extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: BoomTileAttachParams =>
+      val casinoParams = tp.tileParams.core.casino.getOrElse(CasinoParams())
+      tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
+        casino = Some(casinoParams)
+      )))
+    case other => other
+  }
+})
+
+class WithCasinoOnLastBoomTile extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) =>
+    val prev = up(TilesLocated(InSubsystem), site)
+    prev.zipWithIndex.map {
+      case (tp: BoomTileAttachParams, idx) if idx == prev.size - 1 =>
+        val casinoParams = tp.tileParams.core.casino.getOrElse(CasinoParams())
+        tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(
+          casino = Some(casinoParams)
+        )))
+      case (other, _) => other
+    }
+})
+
 class WithNBoomPerfCounters(n: Int) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: BoomTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(core = tp.tileParams.core.copy(

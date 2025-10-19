@@ -22,6 +22,11 @@ import boom.lsu._
 /**
  * Default BOOM core parameters
  */
+case class CasinoParams(
+  speculativeWindow: Int = 2,
+  dataBufferEntries: Int = 4,
+  outstandingStoreCounters: Int = 64)
+
 case class BoomCoreParams(
 // DOC include start: BOOM Parameters
   fetchWidth: Int = 1,
@@ -101,7 +106,10 @@ case class BoomCoreParams(
   /* debug stuff */
   enableCommitLogPrintf: Boolean = false,
   enableBranchPrintf: Boolean = false,
-  enableMemtracePrintf: Boolean = false
+  enableMemtracePrintf: Boolean = false,
+
+  /* CASINO microarchitecture */
+  casino: Option[CasinoParams] = None
 
 // DOC include end: BOOM Parameters
 ) extends freechips.rocketchip.tile.CoreParams
@@ -160,6 +168,9 @@ class BoomCustomCSRs(implicit p: Parameters) extends freechips.rocketchip.tile.C
 trait HasBoomCoreParameters extends freechips.rocketchip.tile.HasCoreParameters
 {
   val boomParams: BoomCoreParams = tileParams.core.asInstanceOf[BoomCoreParams]
+
+  val casinoParamsOpt: Option[CasinoParams] = boomParams.casino
+  val casinoEnabled: Boolean = casinoParamsOpt.nonEmpty
 
   //************************************
   // Superscalar Widths
