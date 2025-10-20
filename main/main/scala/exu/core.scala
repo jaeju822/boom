@@ -628,6 +628,13 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     rename.io.rollback := rob.io.commit.rollback
   }
 
+  rename_stage.io.casinoSkipAlloc := casinoSkipAllocMask
+  if (usingFPU) {
+    fp_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
+  }
+  pred_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
+
+
   // Outputs
   dis_uops := rename_stage.io.ren2_uops
   dis_valids := rename_stage.io.ren2_mask
