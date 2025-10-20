@@ -78,6 +78,9 @@ abstract class AbstractRenameStage(
     // wakeup ports
     val wakeups = Flipped(Vec(numWbPorts, Valid(new ExeUnitResp(xLen))))
 
+    // CASINO specific controls.
+    val casinoSkipAlloc = Input(Vec(plWidth, Bool()))
+
     // commit stage
     val com_valids = Input(Vec(plWidth, Bool()))
     val com_uops = Input(Vec(plWidth, new MicroOp()))
@@ -104,6 +107,7 @@ abstract class AbstractRenameStage(
   val ren2_valids     = Wire(Vec(plWidth, Bool()))
   val ren2_uops       = Wire(Vec(plWidth, new MicroOp))
   val ren2_alloc_reqs = Wire(Vec(plWidth, Bool()))
+  val ren2_write_reqs = Wire(Vec(plWidth, Bool()))
 
 
   //-------------------------------------------------------------
@@ -234,7 +238,9 @@ class RenameStage(
   val rbk_valids      = Wire(Vec(plWidth, Bool()))
 
   for (w <- 0 until plWidth) {
-    ren2_alloc_reqs(w)    := ren2_uops(w).ldst_val && ren2_uops(w).dst_rtype === rtype && ren2_fire(w)
+    val writesDest = ren2_uops(w).ldst_val && ren2_uops(w).dst_rtype === rtype && ren2_fire(w)
+    ren2_write_reqs(w)    := writesDest
+    ren2_alloc_reqs(w)    := writesDest && (!io.casinoSkipAlloc(w) || float.B)
     ren2_br_tags(w).valid := ren2_fire(w) && ren2_uops(w).allocate_brtag
 
     com_valids(w)         := io.com_uops(w).ldst_val && io.com_uops(w).dst_rtype === rtype && io.com_valids(w)
@@ -286,10 +292,12 @@ class RenameStage(
 
   // Freelist inputs.
   freelist.io.reqs := ren2_alloc_reqs
-  freelist.io.dealloc_pregs zip com_valids zip rbk_valids map
-    {case ((d,c),r) => d.valid := c || r}
-  freelist.io.dealloc_pregs zip io.com_uops map
-    {case (d,c) => d.bits := Mux(io.rollback, c.pdst, c.stale_pdst)}
+  for (w <- 0 until plWidth) {
+    val comOrRollback = com_valids(w) || rbk_valids(w)
+    val hasNewMapping = io.com_uops(w).pdst =/= io.com_uops(w).stale_pdst
+    freelist.io.dealloc_pregs(w).valid := comOrRollback && hasNewMapping
+    freelist.io.dealloc_pregs(w).bits := Mux(io.rollback, io.com_uops(w).pdst, io.com_uops(w).stale_pdst)
+  }
   freelist.io.ren_br_tags := ren2_br_tags
   freelist.io.brupdate := io.brupdate
   freelist.io.debug.pipeline_empty := io.debug_rob_empty
@@ -299,15 +307,18 @@ class RenameStage(
 
   // Freelist outputs.
   for ((uop, w) <- ren2_uops.zipWithIndex) {
+    val allocValid = freelist.io.alloc_pregs(w).valid && ren2_alloc_reqs(w)
     val preg = freelist.io.alloc_pregs(w).bits
-    uop.pdst := Mux(uop.ldst =/= 0.U || float.B, preg, 0.U)
+    val stale = uop.stale_pdst
+    val nextPdst = Mux(uop.ldst =/= 0.U || float.B, preg, 0.U)
+    uop.pdst := Mux(allocValid, nextPdst, stale)
   }
 
   //-------------------------------------------------------------
   // Busy Table
 
   busytable.io.ren_uops := ren2_uops  // expects pdst to be set up.
-  busytable.io.rebusy_reqs := ren2_alloc_reqs
+  busytable.io.rebusy_reqs := ren2_write_reqs
   busytable.io.wb_valids := io.wakeups.map(_.valid)
   busytable.io.wb_pdsts := io.wakeups.map(_.bits.uop.pdst)
 
@@ -331,12 +342,13 @@ class RenameStage(
 
   for (w <- 0 until plWidth) {
     val can_allocate = freelist.io.alloc_pregs(w).valid
+    val needs_alloc = ren2_alloc_reqs(w)
 
     // Push back against Decode stage if Rename1 can't proceed.
-    io.ren_stalls(w) := (ren2_uops(w).dst_rtype === rtype) && !can_allocate
+    io.ren_stalls(w) := (ren2_uops(w).dst_rtype === rtype) && needs_alloc && !can_allocate
 
     val bypassed_uop = Wire(new MicroOp)
-    if (w > 0) bypassed_uop := BypassAllocations(ren2_uops(w), ren2_uops.slice(0,w), ren2_alloc_reqs.slice(0,w))
+    if (w > 0) bypassed_uop := BypassAllocations(ren2_uops(w), ren2_uops.slice(0,w), ren2_write_reqs.slice(0,w))
     else       bypassed_uop := ren2_uops(w)
 
     io.ren2_uops(w) := GetNewUopAndBrMask(bypassed_uop, io.brupdate)
@@ -362,6 +374,7 @@ class PredRenameStage(
   }
 
   ren2_alloc_reqs := DontCare
+  ren2_write_reqs := DontCare
 
   val busy_table = RegInit(VecInit(0.U(ftqSz.W).asBools))
   val to_busy = WireInit(VecInit(0.U(ftqSz.W).asBools))
