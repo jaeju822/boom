@@ -754,6 +754,12 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     })
   }
 
+  rename_stage.io.casinoSkipAlloc := casinoSkipAllocMask
+  if (usingFPU) {
+    fp_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
+  }
+  pred_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
+
   //-------------------------------------------------------------
   //-------------------------------------------------------------
   // **** Dispatch Stage ****
