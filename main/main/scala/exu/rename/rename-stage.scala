@@ -112,6 +112,7 @@ abstract class AbstractRenameStage(
   val ren2_alloc_fire = WireInit(VecInit(Seq.fill(plWidth)(false.B)))
   val ren2_has_alloc  = RegInit(VecInit(Seq.fill(plWidth)(false.B)))
   val ren2_pdst_next  = Wire(Vec(plWidth, UInt(pregSz.W)))
+  val ren2_uops_base_pdst = Wire(Vec(plWidth, UInt(pregSz.W)))
 
 
   //-------------------------------------------------------------
@@ -174,6 +175,8 @@ class RenameStage(
 (implicit p: Parameters) extends AbstractRenameStage(plWidth, numPhysRegs, numWbPorts)(p)
 {
   val rtype = if (float) RT_FLT else RT_FIX
+
+  private val ren2_stored_pdst = RegInit(VecInit(Seq.fill(plWidth)(0.U(pregSz.W))))
 
   //-------------------------------------------------------------
   // Helper Functions
@@ -245,6 +248,9 @@ class RenameStage(
   val rbk_valids      = Wire(Vec(plWidth, Bool()))
 
   for (w <- 0 until plWidth) {
+    val storedPdst = ren2_stored_pdst(w)
+    ren2_uops_base_pdst(w) := storedPdst
+
     val writesDest = ren2_uops(w).ldst_val && ren2_uops(w).dst_rtype === rtype
     val needsAlloc = writesDest && (!io.casinoSkipAlloc(w) || float.B)
     val needAlloc  = ren2_valids(w) && needsAlloc
@@ -265,11 +271,26 @@ class RenameStage(
     }
 
     val allocPdst = Mux(ren2_uops(w).ldst =/= 0.U || float.B, freelist.io.alloc_pregs(w).bits, 0.U)
-    val pdstNext = Mux(allocFire, allocPdst, ren2_uops(w).pdst)
+    val pdstNext = Mux(allocFire, allocPdst, storedPdst)
     ren2_pdst_next(w) := pdstNext
     when (allocFire) {
-      ren2_uops(w).pdst := pdstNext
+      ren2_uops(w).pdst := allocPdst
     }
+
+    val storedPdstNext = WireDefault(storedPdst)
+    when (io.kill) {
+      storedPdstNext := 0.U
+    } .elsewhen (ren2_ready) {
+      storedPdstNext := Mux(ren1_fire(w), ren1_uops(w).stale_pdst, 0.U)
+    } .elsewhen (!ren2_valids(w) || ren2_fire(w)) {
+      storedPdstNext := 0.U
+    }
+
+    when (!io.kill && allocFire) {
+      storedPdstNext := allocPdst
+    }
+
+    ren2_stored_pdst(w) := storedPdstNext
 
     com_valids(w)         := io.com_uops(w).ldst_val && io.com_uops(w).dst_rtype === rtype && io.com_valids(w)
     rbk_valids(w)         := io.com_uops(w).ldst_val && io.com_uops(w).dst_rtype === rtype && io.rbk_valids(w)
@@ -394,6 +415,7 @@ class PredRenameStage(
     ren2_alloc_reqs(w) := false.B
     ren2_write_reqs(w) := false.B
     ren2_pdst_next(w) := ren2_uops(w).pdst
+    ren2_uops_base_pdst(w) := ren2_uops(w).pdst
     io.ren_stalls(w) := false.B
   }
 
