@@ -28,7 +28,7 @@ class DualSmallBoomConfig extends Config(
   new boom.common.WithNSmallBooms(2) ++                          // 2 boom cores
   new chipyard.config.AbstractConfig)
 
-class SmallCasinoBoomConfig extends Config(
+class CasinoConfig extends Config(
   new boom.common.WithNSmallBooms(1) ++
   new boom.common.WithCasinoScheduling ++
   new chipyard.config.AbstractConfig)
