@@ -628,6 +628,13 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     rename.io.rollback := rob.io.commit.rollback
   }
 
+  val casinoSpecMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoSkipAllocMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoOutstandingMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoDataAlloc = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoDataRelease = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoDataBufferFullWire = WireInit(false.B)
+
   rename_stage.io.casinoSkipAlloc := casinoSkipAllocMask
   if (usingFPU) {
     fp_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
@@ -679,13 +686,6 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     dis_uops(w).casino.outstandingStoreHazard := false.B
     dis_uops(w).casino.oscaHash := 0.U
   }
-
-  val casinoSpecMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
-  val casinoSkipAllocMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
-  val casinoOutstandingMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
-  val casinoDataAlloc = Wire(Vec(coreWidth, Bool()))
-  val casinoDataRelease = Wire(Vec(coreWidth, Bool()))
-  val casinoDataBufferFullWire = WireDefault(false.B)
 
   if (casinoEnabled) {
     val casinoParams = boomParams.casino.get
@@ -752,9 +752,6 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     casinoSkipAllocMask := VecInit((0 until coreWidth).map { w =>
       dis_valids(w) && dis_uops(w).dst_rtype === RT_FIX && !specFiltered(w)
     })
-  } else {
-    casinoDataAlloc := VecInit(Seq.fill(coreWidth)(false.B))
-    casinoDataRelease := VecInit(Seq.fill(coreWidth)(false.B))
   }
 
   //-------------------------------------------------------------
