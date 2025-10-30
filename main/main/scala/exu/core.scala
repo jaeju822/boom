@@ -244,6 +244,13 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
   //-------------------------------------------------------------
   // Uarch Hardware Performance Events (HPEs)
 
+val siqIssueSlotEvents = (0 until mem_iss_unit.io.iss_valids.length).map { idx =>
+    (s"SIQ issue slot $idx", () => mem_iss_unit.io.iss_valids(idx))
+  }
+  val iqIssueSlotEvents = (0 until int_iss_unit.io.iss_valids.length).map { idx =>
+    (s"IQ issue slot $idx", () => int_iss_unit.io.iss_valids(idx))
+  }
+  
   val perfEvents = new freechips.rocketchip.rocket.EventSets(Seq(
     new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(
       ("exception", () => rob.io.com_xcpt.valid),
@@ -261,13 +268,22 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
       //("branch resolved",                   () => br_unit.brinfo.valid)
     )),
 
-    new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(
-      ("I$ miss",     () => io.ifu.perf.acquire),
-      ("D$ miss",     () => io.lsu.perf.acquire),
-      ("D$ release",  () => io.lsu.perf.release),
-      ("ITLB miss",   () => io.ifu.perf.tlbMiss),
-      ("DTLB miss",   () => io.lsu.perf.tlbMiss),
-      ("L2 TLB miss", () => io.ptw.perf.l2miss)))))
+        new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR,
+      Seq(
+        ("I$ miss",     () => io.ifu.perf.acquire),
+        ("D$ miss",     () => io.lsu.perf.acquire),
+        ("D$ release",  () => io.lsu.perf.release),
+        ("ITLB miss",   () => io.ifu.perf.tlbMiss),
+        ("DTLB miss",   () => io.lsu.perf.tlbMiss),
+        ("L2 TLB miss", () => io.ptw.perf.l2miss)
+      ) ++
+      siqIssueSlotEvents ++
+      iqIssueSlotEvents ++
+      Seq(
+        ("SIQ empty", () => mem_iss_unit.io.event_empty),
+        ("IQ empty",  () => int_iss_unit.io.event_empty)
+      )
+    )))
   val csr = Module(new freechips.rocketchip.rocket.CSRFile(perfEvents, boomParams.customCSRs.decls))
   csr.io.inst foreach { c => c := DontCare }
   csr.io.rocc_interrupt := io.rocc.interrupt
@@ -628,19 +644,6 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     rename.io.rollback := rob.io.commit.rollback
   }
 
-  val casinoSpecMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
-  val casinoSkipAllocMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
-  val casinoOutstandingMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
-  val casinoDataAlloc = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
-  val casinoDataRelease = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
-  val casinoDataBufferFullWire = WireInit(false.B)
-
-  rename_stage.io.casinoSkipAlloc := casinoSkipAllocMask
-  if (usingFPU) {
-    fp_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
-  }
-  pred_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
-
 
   // Outputs
   dis_uops := rename_stage.io.ren2_uops
@@ -686,6 +689,12 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     dis_uops(w).casino.outstandingStoreHazard := false.B
     dis_uops(w).casino.oscaHash := 0.U
   }
+
+  val casinoSpecMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoOutstandingMask = WireInit(VecInit(Seq.fill(coreWidth)(false.B)))
+  val casinoDataAlloc = Wire(Vec(coreWidth, Bool()))
+  val casinoDataRelease = Wire(Vec(coreWidth, Bool()))
+  val casinoDataBufferFullWire = WireDefault(false.B)
 
   if (casinoEnabled) {
     val casinoParams = boomParams.casino.get
@@ -749,9 +758,9 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     dontTouch(dataBuffer.io.occupancy)
 
     casinoSpecMask := specFiltered
-    casinoSkipAllocMask := VecInit((0 until coreWidth).map { w =>
-      dis_valids(w) && dis_uops(w).dst_rtype === RT_FIX && !specFiltered(w)
-    })
+  } else {
+    casinoDataAlloc := VecInit(Seq.fill(coreWidth)(false.B))
+    casinoDataRelease := VecInit(Seq.fill(coreWidth)(false.B))
   }
 
   //-------------------------------------------------------------
