@@ -763,6 +763,12 @@ val siqIssueSlotEvents = (0 until mem_iss_unit.io.iss_valids.length).map { idx =
     casinoDataRelease := VecInit(Seq.fill(coreWidth)(false.B))
   }
 
+  rename_stage.io.casinoSkipAlloc := casinoSkipAllocMask
+  if (usingFPU) {
+    fp_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
+  }
+  pred_rename_stage.io.casinoSkipAlloc := VecInit(Seq.fill(coreWidth)(false.B))
+
   //-------------------------------------------------------------
   //-------------------------------------------------------------
   // **** Dispatch Stage ****
